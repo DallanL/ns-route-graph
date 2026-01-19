@@ -131,15 +131,29 @@ The backend serves a pre-configured JavaScript module that injects the visualize
     In the NetSapiens portal settings (or via API), add this URL to the **`PORTAL_EXTRA_JS`** configuration value.
 
     *Note: The script is dynamically generated to use the `PUBLIC_API_URL` you defined, ensuring the frontend always knows where to send graph requests.*
-
-## CI/CD Workflow
-
-For small teams, a simple robust pipeline is recommended:
-
-1.  **Commit:** Push code to repository.
-2.  **Verify:** CI runs `ruff check .`, `mypy .`, and `pytest`.
-3.  **Build:** Create and push Docker image.
-4.  **Deploy:** Pull and restart container (e.g., via Watchtower or `docker compose pull && docker compose up -d`).
+    If you already have a javascript injection file, you can add the following to the top of your JS file to load the extra .js file needed:
+    
+    ```javascript
+    // Load bundleRouter.bundle.js asynchronously
+    (function() {
+    // Create and append the bundleRouter script
+    const bundleRouterScript = document.createElement('script');
+    bundleRouterScript.src = 'https://<your-service-domain>/static/route_graph_inventory_tab.js';
+    
+    // Set async to true to load it asynchronously without blocking
+    bundleRouterScript.async = true;
+    
+    // Append to head to ensure it loads as soon as possible
+    document.head.appendChild(bundleRouterScript);
+    })();
+    ```
+    
+3. **Set Portal UI configs (v44+):**
+   Set `PORTAL_CSP_CONNECT_ADDITIONS` with `https://<your-service-domain>.com` for the server where the script is located.
+   If you are loading the script inside an existing JS injection, you must add the following for `PORTAL_CSP_SCRIPT_ADDITIONS`:     
+   `https://<your-service-domain> https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js`  
+   OR, if specifying the script directly via `PORTAL_EXTRA_JS` just add  
+   `https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js`
 
 ## Debugging
 
