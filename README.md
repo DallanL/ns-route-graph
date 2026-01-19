@@ -1,11 +1,6 @@
 # NetSapiens Call Flow Visualizer
 
-## TL;DR:
 A FastAPI backend service that generates interactive call flow graphs for NetSapiens PBX systems. It acts as a middleware to crawl call logic (DIDs, Users, Auto Attendants, Queues) and produces a directed graph for visualization.
-
-
-
-
 
 ## Features
 
@@ -13,6 +8,39 @@ A FastAPI backend service that generates interactive call flow graphs for NetSap
 - **Resilient Client:** Automatic failover across multiple NetSapiens API clusters.
 - **Security:** Strict API URL whitelisting with wildcard support.
 - **Frontend Integration:** Serves a dynamic JavaScript module for easy injection into the NetSapiens portal.
+
+## Visual Guide & Usage
+
+### Interactive Graph
+The application generates a hierarchical view of your call logic, making it easy to understand complex routing.
+![Call Flow Example](docs/images/example-basic-tree.png)
+
+### Filtering by Phone Number (DID)
+Use the "Phone Number Filter" button to toggle visibility for specific ingress numbers.
+![DID Filter Menu](docs/images/DID-filter-1.png)
+*Isolating a specific DID allows you to trace its unique path through the system.*
+![Filtered View](docs/images/DID-filter-2.png)
+
+### Timeframe Simulation
+The **Time Simulator** allows you to test how calls route at specific times (e.g., After Hours, Holidays) without waiting.
+
+**Standard Business Hours:**
+![Time Simulator](docs/images/time-sim-1.png)
+
+**Weekend Simulation (Route changes to gray/dashed for inactive paths):**
+![Weekend Simulation](docs/images/time-sim-2-weekend.png)
+
+**Holiday Simulation:**
+![Holiday Simulation](docs/images/time-sim-3-holiday.png)
+
+### Inspecting Details
+Right-click on any **Node** (User, Auto Attendant, etc.) or **Edge** (Connection) to view raw API data, configuration parameters, and detailed logic.
+
+**Node Details:**
+![Node Details](docs/images/node-details.png)
+
+**Edge Details:**
+![Edge Details](docs/images/edge-details.png)
 
 ## Setup
 
@@ -53,7 +81,7 @@ The application is configured via environment variables. Create a `.env` file (s
 ### Docker Compose (Recommended)
 
 1.  **Configure Environment:**
-    Ensure your `.env` file has the correct `PUBLIC_API_URL` pointing to your production domain (e.g., `https://graph.yourdomain.com/graph`). and it is highly recommended to use a reverse proxy, otherwise your browser might yell at you.
+    Ensure your `.env` file has the correct `PUBLIC_API_URL` pointing to your production domain (e.g., `https://graph.yourdomain.com/graph`).
 
 2.  **Start Service:**
     ```bash
@@ -104,6 +132,14 @@ The backend serves a pre-configured JavaScript module that injects the visualize
 
     *Note: The script is dynamically generated to use the `PUBLIC_API_URL` you defined, ensuring the frontend always knows where to send graph requests.*
 
+## CI/CD Workflow
+
+For small teams, a simple robust pipeline is recommended:
+
+1.  **Commit:** Push code to repository.
+2.  **Verify:** CI runs `ruff check .`, `mypy .`, and `pytest`.
+3.  **Build:** Create and push Docker image.
+4.  **Deploy:** Pull and restart container (e.g., via Watchtower or `docker compose pull && docker compose up -d`).
 
 ## Debugging
 
