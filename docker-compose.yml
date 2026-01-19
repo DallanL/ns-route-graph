@@ -1,0 +1,28 @@
+services:
+  route-graph:
+    build: .
+    container_name: route-graph
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+    volumes:
+      - ./allowed_domains.json:/app/allowed_domains.json
+    environment:
+      - DEBUG=${DEBUG:-false}
+      - PUBLIC_API_URL=${PUBLIC_API_URL}
+
+    networks:
+      - app_network
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.route-graph.rule=Host(`${SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.route-graph.entrypoints=websecure"
+      - "traefik.http.routers.route-graph.tls.certresolver=letsencrypt"
+      - "traefik.http.services.route-graph.loadbalancer.server.port=8000"
+
+networks:
+  app_network:
+    external: true
+    name: ${DOCKER_NETWORK}

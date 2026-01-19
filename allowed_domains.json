@@ -1,0 +1,8 @@
+{
+  "allowed_domains": [
+    "api.netsapiens.com",
+    "api2.netsapiens.com",
+    "*.voipco.co",
+    "sandbox.voipco.co"
+  ]
+}
