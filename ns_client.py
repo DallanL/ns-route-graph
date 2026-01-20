@@ -135,13 +135,41 @@ class NSClient:
         logger.error(f"All API endpoints failed. Exceptions: {exceptions}")
         raise HTTPException(status_code=503, detail="Upstream PBX Unreachable")
 
+    async def _get_paginated(
+        self, path: str, model: Type[T], limit: int = 1000, max_items: int = 10000
+    ) -> List[T]:
+        items: List[T] = []
+        start = 0
+        while True:
+            batch = await self._request(
+                "GET", path, model=model, params={"limit": limit, "start": start}
+            )
+
+            if not batch:
+                break
+
+            items.extend(batch)
+
+            if len(items) > max_items:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Resource limit exceeded: >{max_items} items found at {path}",
+                )
+
+            if len(batch) < limit:
+                break
+
+            start += limit
+
+        return items
+
     async def get_dids(self, domain: str) -> List[NSPhoneNumber]:
-        return await self._request(
-            "GET", f"/domains/{domain}/phonenumbers", model=NSPhoneNumber
+        return await self._get_paginated(
+            f"/domains/{domain}/phonenumbers", model=NSPhoneNumber
         )
 
     async def get_users(self, domain: str) -> List[NSUser]:
-        return await self._request("GET", f"/domains/{domain}/users", model=NSUser)
+        return await self._get_paginated(f"/domains/{domain}/users", model=NSUser)
 
     async def get_domain_timeframes(self, domain: str) -> List[NSTimeframe]:
         return await self._request(
