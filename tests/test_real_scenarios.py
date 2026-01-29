@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from models import NSAnswerRule, NSTimeframe, NSUser, NSPhoneNumber
+
+import pytest
+
 from graph_builder import GraphBuilder
+from models import NSAnswerRule, NSPhoneNumber, NSTimeframe, NSUser
 from ns_client import NSClient
 
 # Raw data from sandbox inspection
@@ -100,7 +102,9 @@ async def test_holiday_graph_build():
     # User 000 -> vmail_101 (via Forward Always [Holidays])
 
     # Check edges
-    edges = [e.data for e in elements if "source" in e.data.model_dump()]
+    from models import EdgeData
+
+    edges = [e.data for e in elements if isinstance(e.data, EdgeData)]
 
     # Edge 1: DID -> 000
     edge1 = next(

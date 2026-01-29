@@ -1,16 +1,17 @@
 import asyncio
-from typing import List, Set, Dict, Any, Tuple, Union, Optional
-from ns_client import NSClient
-from models import (
-    CytoscapeElement,
-    NodeData,
-    EdgeData,
-    NSPhoneNumber,
-    NSAutoAttendantResponse,
-)
-from utils import format_phone_number, generate_portal_link
 import logging
 import re
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+from models import (
+    CytoscapeElement,
+    EdgeData,
+    NodeData,
+    NSAutoAttendantResponse,
+    NSPhoneNumber,
+)
+from ns_client import NSClient
+from utils import format_phone_number, generate_portal_link
 
 logger = logging.getLogger(__name__)
 
@@ -76,39 +77,57 @@ class GraphBuilder:
     def _safe_id(self, val: str) -> str:
         return val.replace(":", "_").replace("@", "_").replace(".", "_")
 
-    def _get_type_and_name(self, target: Union[str, int]) -> Tuple[str, str]:
+    def _get_type_and_name(
+        self, target: Union[str, int]
+    ) -> Tuple[str, str, Optional[str]]:
         target = str(target)
+
+        # New pattern: <phone>_callqueue_<user>
+        m_queue = re.match(r"^\d+_callqueue_(\w+)$", target)
+        if m_queue:
+            return "call_queue", m_queue.group(1), f"user_{m_queue.group(1)}"
+
+        # New pattern: <phone>_attendant_<user>
+        m_att = re.match(r"^\d+_attendant_(\w+)$", target)
+        if m_att:
+            return "user", m_att.group(1), None
+
+        # New pattern: <phone>_pstn_<phone>
+        m_pstn = re.match(r"^\d+_pstn_(\d+)$", target)
+        if m_pstn:
+            return "offnet", m_pstn.group(1), None
+
         if "Prompt" in target or "Announce" in target:
-            return "auto_attendant", target
+            return "auto_attendant", target, None
         if "vmail_" in target:
-            return "voicemail", target
+            return "voicemail", target, None
         if "queue_" in target:
-            return "call_queue", target.replace("queue_", "")
+            return "call_queue", target.replace("queue_", ""), None
         if "user_" in target:
             u_name = target.replace("user_", "")
             if u_name.endswith(f"@{self.domain}"):
                 u_name = u_name.split("@")[0]
-            return "user", u_name
+            return "user", u_name, None
         if "phone_" in target:
-            return "device", target.replace("phone_", "")
+            return "device", target.replace("phone_", ""), None
         if target in self.users_map:
-            return "user", target
+            return "user", target, None
         if re.match(r"^1?\d{10}$", target):
-            return "offnet", target
+            return "offnet", target, None
 
         
 
         if target.lower() == "hangup":
-            return "hangup", "Hangup"
+            return "hangup", "Hangup", None
 
-        return "other", target
+        return "other", target, None
 
     async def _process_did_path(self, did_obj: NSPhoneNumber) -> List[CytoscapeElement]:
         elements: List[CytoscapeElement] = []
         visited: Set[str] = set()
 
-        # Queue item: (source_id, target_name, target_type, edge_label, extra_edge_data, should_expand)
-        queue: List[Tuple[str, str, str, str, Dict[str, Any], bool]] = []
+        # Queue item: (source_id, target_name, target_type, edge_label, extra_edge_data, should_expand, parent_hint)
+        queue: List[Tuple[str, str, str, str, Dict[str, Any], bool, Optional[str]]] = []
 
         did = did_obj.phonenumber
         dest = did_obj.dest
@@ -136,8 +155,18 @@ class GraphBuilder:
 
         visited.add(root_id)
 
-        initial_type, initial_name = self._get_type_and_name(dest)
-        queue.append((root_id, initial_name, initial_type, "Destination", {}, True))
+        initial_type, initial_name, initial_parent = self._get_type_and_name(dest)
+        queue.append(
+            (
+                root_id,
+                initial_name,
+                initial_type,
+                "Destination",
+                {},
+                True,
+                initial_parent,
+            )
+        )
 
         while queue:
             (
@@ -147,6 +176,7 @@ class GraphBuilder:
                 edge_label,
                 extra_data,
                 should_expand,
+                parent_hint,
             ) = queue.pop(0)
 
             raw_node_id = f"{target_type_hint}_{target_name}"
@@ -174,6 +204,8 @@ class GraphBuilder:
                 self.domain, target_type_hint, target_name
             )
             node_parent = None
+            if parent_hint:
+                node_parent = self._safe_id(parent_hint)
 
             async def get_aa_response(owner, prompt):
                 cache_key = f"{owner}:{prompt}"
@@ -345,6 +377,7 @@ class GraphBuilder:
                     child_label,
                     child_extra,
                     child_should_expand,
+                    child_parent,
                 ) in children:
                     queue.append(
                         (
@@ -354,6 +387,7 @@ class GraphBuilder:
                             child_label,
                             child_extra,
                             child_should_expand,
+                            child_parent,
                         )
                     )
 
@@ -361,8 +395,8 @@ class GraphBuilder:
 
     async def _expand_node(
         self, node_name: str, node_type: str
-    ) -> List[Tuple[str, str, str, Dict[str, Any], bool]]:
-        # Returns (child_name, child_type, label, extra_data, should_expand)
+    ) -> List[Tuple[str, str, str, Dict[str, Any], bool, Optional[str]]]:
+        # Returns (child_name, child_type, label, extra_data, should_expand, parent_hint)
         children = []
 
         if node_type == "user":
@@ -391,14 +425,18 @@ class GraphBuilder:
                     for target in rule.simultaneous_ring.parameters:
                         if target:
                             lbl = format_edge_label("Simultaneous Ring")
-                            child_type, child_name = self._get_type_and_name(target)
+                            child_type, child_name, child_parent = (
+                                self._get_type_and_name(target)
+                            )
 
                             if child_type == "auto_attendant":
                                 # Scoping: If AA target doesn't have ':', assume it belongs to current node (user)
                                 if ":" not in child_name:
                                     child_name = f"{node_name}:{child_name}"
 
-                            children.append((child_name, child_type, lbl, extra, True))
+                            children.append(
+                                (child_name, child_type, lbl, extra, True, child_parent)
+                            )
 
                 # Forwarding
                 forward_mappings = [
@@ -417,13 +455,17 @@ class GraphBuilder:
                         target = fwd_logic.parameters[0]
                         if target:
                             lbl = format_edge_label(fwd_name)
-                            child_type, child_name = self._get_type_and_name(target)
+                            child_type, child_name, child_parent = (
+                                self._get_type_and_name(target)
+                            )
 
                             if child_type == "auto_attendant":
                                 if ":" not in child_name:
                                     child_name = f"{node_name}:{child_name}"
 
-                            children.append((child_name, child_type, lbl, extra, True))
+                            children.append(
+                                (child_name, child_type, lbl, extra, True, child_parent)
+                            )
 
         elif node_type == "auto_attendant":
             if ":" in node_name:
@@ -469,7 +511,7 @@ class GraphBuilder:
                         # Usually owner + starting_prompt
                         child_name = f"{owner}:{main_prompt}"
                         children.append(
-                            (child_name, "auto_attendant", "Next", {}, True)
+                            (child_name, "auto_attendant", "Next", {}, True, None)
                         )
 
                     elif aa_response.auto_attendant:
@@ -496,7 +538,14 @@ class GraphBuilder:
                                 if option == "repeat":
                                     # Loop back to self
                                     children.append(
-                                        (node_name, "auto_attendant", label, {}, False)
+                                        (
+                                            node_name,
+                                            "auto_attendant",
+                                            label,
+                                            {},
+                                            False,
+                                            None,
+                                        )
                                     )
                                 continue
 
@@ -529,6 +578,7 @@ class GraphBuilder:
                                             label,
                                             {},
                                             True,
+                                            None,
                                         )
                                     )
                                 except Exception as e:
@@ -541,22 +591,26 @@ class GraphBuilder:
                             app = option.destination_application
                             if app and "sip:start" in app and "directory" in app:
                                 children.append(
-                                    ("Directory", "directory", label, {}, False)
+                                    ("Directory", "directory", label, {}, False, None)
                                 )
                                 continue
 
                             # Standard Destinations
                             dest = option.destination_user
-                            child_type = "user"
+
+                            # Use _get_type_and_name on the raw destination first
+                            child_type, child_name, child_parent = (
+                                self._get_type_and_name(dest or "")
+                            )
 
                             if app == "hangup":
                                 child_type = "hangup"
-                                dest = "Hangup"
+                                child_name = "Hangup"
                             elif app == "voicemail":
                                 child_type = "voicemail"
                             elif app == "repeat-tier":
                                 child_type = "auto_attendant"
-                                dest = node_name
+                                child_name = node_name
                             elif app == "callcenter":
                                 child_type = "call_queue"
                             elif app == "to-single-device":
@@ -564,11 +618,20 @@ class GraphBuilder:
                                 # Pattern: ID.something (e.g., 3333.1234.com)
                                 if dest and "." in dest:
                                     conf_id = dest.split(".")[0]
-                                    dest = conf_id
+                                    child_name = conf_id
                                     child_type = "conference"
 
-                            if dest:
-                                children.append((dest, child_type, label, {}, True))
+                            if child_name:
+                                children.append(
+                                    (
+                                        child_name,
+                                        child_type,
+                                        label,
+                                        {},
+                                        True,
+                                        child_parent,
+                                    )
+                                )
             except Exception as e:
                 logger.warning(f"Failed to fetch AA prompts for {owner}/{prompt}: {e}")
 
@@ -586,7 +649,7 @@ class GraphBuilder:
                 for agent in agents:
                     if agent.user:
                         # Agents are terminal in the context of a queue
-                        children.append((agent.user, "user", "Agent", {}, False))
+                        children.append((agent.user, "user", "Agent", {}, False, None))
             except Exception as e:
                 logger.warning(f"Failed to fetch agents for queue {node_name}: {e}")
 

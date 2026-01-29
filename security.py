@@ -1,29 +1,35 @@
-import json
-import os
-import logging
 import fnmatch
-from typing import List
+import json
+import logging
+import os
+from typing import List, Optional
 from urllib.parse import urlparse
+
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
 
 class DomainWhitelist:
-    def __init__(self, config_path: str):
+    def __init__(
+        self, config_path: str, additional_patterns: Optional[List[str]] = None
+    ):
         self.config_path = config_path
-        self.allowed_patterns: List[str] = []
-        self._last_mtime = 0
+        self.additional_patterns = additional_patterns or []
+        self.file_patterns: List[str] = []
+        self._last_mtime = 0.0
         self.load_config()
 
     def load_config(self):
         """Loads or reloads the configuration if the file has changed."""
         try:
             if not os.path.exists(self.config_path):
-                logger.warning(
-                    f"Whitelist config file not found at {self.config_path}. Defaulting to empty whitelist."
-                )
-                self.allowed_patterns = []
+                # Only warn if we also don't have env patterns
+                if not self.additional_patterns:
+                    logger.warning(
+                        f"Whitelist config file not found at {self.config_path}. Defaulting to empty whitelist."
+                    )
+                self.file_patterns = []
                 return
 
             mtime = os.path.getmtime(self.config_path)
@@ -31,12 +37,17 @@ class DomainWhitelist:
                 logger.info(f"Loading whitelist config from {self.config_path}")
                 with open(self.config_path, "r") as f:
                     data = json.load(f)
-                    self.allowed_patterns = data.get("allowed_domains", [])
+                    self.file_patterns = data.get("allowed_domains", [])
                 self._last_mtime = mtime
-                logger.debug(f"Loaded allowed patterns: {self.allowed_patterns}")
+                logger.debug(f"Loaded allowed patterns from file: {self.file_patterns}")
         except Exception as e:
             logger.error(f"Failed to load whitelist config: {e}")
             # Keep previous config on error to avoid outage
+
+    @property
+    def allowed_patterns(self) -> List[str]:
+        """Combines file-based and environment-based patterns."""
+        return self.file_patterns + self.additional_patterns
 
     def is_allowed(self, url: str) -> bool:
         """

@@ -1,17 +1,19 @@
 import argparse
+import logging
 import os
+from typing import List, Optional
+
+import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from ns_client import NSClient
-from graph_builder import GraphBuilder
-from typing import Optional, List
-from models import CytoscapeElement
-import logging
+from fastapi.templating import Jinja2Templates
+
 from config import settings
+from graph_builder import GraphBuilder
+from models import CytoscapeElement
+from ns_client import NSClient
 from security import DomainWhitelist
-import httpx
 
 # Setup Logging
 LOG_LEVEL = logging.INFO
@@ -27,7 +29,11 @@ app = FastAPI(title="NetSapiens Call Flow Visualizer")
 
 templates = Jinja2Templates(directory="templates")
 
-whitelist = DomainWhitelist(settings.WHITELIST_FILE)
+# Parse env whitelist (comma-separated)
+env_whitelist = [
+    d.strip() for d in settings.ALLOWED_DOMAINS_ENV.split(",") if d.strip()
+]
+whitelist = DomainWhitelist(settings.WHITELIST_FILE, additional_patterns=env_whitelist)
 
 app.add_middleware(
     CORSMiddleware,

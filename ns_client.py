@@ -1,18 +1,20 @@
-import httpx
 import json
+import logging
 import urllib.parse
-from typing import Optional, Any, List, Type, TypeVar, Dict
+from typing import Any, Dict, List, Optional, Type, TypeVar
+
+import httpx
 from fastapi import HTTPException
+from pydantic import BaseModel
+
 from models import (
-    NSUser,
-    NSPhoneNumber,
-    NSTimeframe,
     NSAnswerRule,
     NSAutoAttendantResponse,
     NSCallQueueAgent,
+    NSPhoneNumber,
+    NSTimeframe,
+    NSUser,
 )
-import logging
-from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 

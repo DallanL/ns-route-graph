@@ -1,7 +1,9 @@
-import pytest
 import os
-from ns_client import NSClient
+
+import pytest
 from dotenv import load_dotenv
+
+from ns_client import NSClient
 
 load_dotenv()
 
@@ -24,6 +26,7 @@ async def test_sandbox_connectivity(sandbox_client):
     if not NS_DOMAIN:
         pytest.skip("Skipping: NS_DOMAIN not set")
 
+    assert NS_API_URL is not None
     assert sandbox_client.candidate_urls[0] == NS_API_URL.rstrip("/")
 
     try:

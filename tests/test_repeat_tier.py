@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from graph_builder import GraphBuilder
-from models import NSPhoneNumber, NSAutoAttendantResponse, NSAutoAttendantOption
+from models import NSAutoAttendantOption, NSAutoAttendantResponse, NSPhoneNumber
 from ns_client import NSClient
 
 
