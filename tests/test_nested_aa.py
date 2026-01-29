@@ -1,8 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ns_client import NSClient
+
+import pytest
+
 from graph_builder import GraphBuilder
-from models import NSUser, NSPhoneNumber, NSAutoAttendantResponse
+from models import NSAutoAttendantResponse, NSPhoneNumber, NSUser
+from ns_client import NSClient
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,15 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from ns_client import NSClient
+
+import pytest
+
 from graph_builder import GraphBuilder
 from models import (
-    NSPhoneNumber,
-    NSAutoAttendantResponse,
-    NSAutoAttendantOption,
     EdgeData,
+    NSAutoAttendantOption,
+    NSAutoAttendantResponse,
+    NSPhoneNumber,
 )
+from ns_client import NSClient
 
 
 @pytest.mark.asyncio
@@ -61,10 +63,21 @@ async def test_intro_greeting_structure():
     elements = await builder.build()
 
     # 1. Verify Intro Greeting Node
+    from models import NodeData
+
     greeting_node_id = "auto_attendant_101_Announce_1003"
-    greeting_node = next((e for e in elements if e.data.id == greeting_node_id), None)
+    greeting_node = next(
+        (
+            e
+            for e in elements
+            if isinstance(e.data, NodeData) and e.data.id == greeting_node_id
+        ),
+        None,
+    )
 
     assert greeting_node is not None, "Intro Greeting Node not found"
+    assert isinstance(greeting_node.data, NodeData)
+    assert greeting_node.data.label is not None
     assert "Intro Greeting: Holidays (1003)" in greeting_node.data.label
 
     # 2. Verify Parenting (Intro Greeting -> Main AA ID)
@@ -87,11 +100,21 @@ async def test_intro_greeting_structure():
     )
 
     assert next_edge is not None, "Edge from Greeting to Main AA not found"
+    assert isinstance(next_edge.data, EdgeData)
     assert next_edge.data.label == "Next"
 
     # 4. Verify Main AA Node Exists
-    main_aa_node = next((e for e in elements if e.data.id == main_aa_id), None)
+    main_aa_node = next(
+        (
+            e
+            for e in elements
+            if isinstance(e.data, NodeData) and e.data.id == main_aa_id
+        ),
+        None,
+    )
     assert main_aa_node is not None, "Main AA Node not found"
+    assert isinstance(main_aa_node.data, NodeData)
+    assert main_aa_node.data.label is not None
     assert "Main AA" in main_aa_node.data.label
 
     # 5. Verify Main AA has children (options) but Greeting does NOT have options

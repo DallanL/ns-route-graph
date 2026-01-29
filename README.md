@@ -54,9 +54,10 @@ Right-click on any **Node** (User, Auto Attendant, etc.) or **Edge** (Connection
 
 The application is configured via environment variables. Create a `.env` file (see `.env.example`) or set these in your container environment.
 
-| Variable |
-| :--- |
+| Variable | Description | Example |
+| :--- | :--- | :--- |
 | `PUBLIC_API_URL` | **Required.** The public URL where this API is reachable by the browser. Used to configure the injected JavaScript. | `http://localhost:8000/graph` |
+| `ALLOWED_DOMAINS_ENV` | (Optional) Comma-separated list of allowed domains. Merged with `allowed_domains.json`. | `api.netsapiens.com,*.my-pbx.com` |
 | `NS_API_TOKEN` | (Development Only) Bearer token for local testing scripts. | `None` |
 | `NS_DOMAIN` | (Development Only) Domain for local testing scripts. | `None` |
 
@@ -106,10 +107,11 @@ It automatically trusts `X-Forwarded-*` headers from all IPs to ensure correct p
 
 ## Security: API Whitelisting
 
-To prevent SSRF or abuse, the API checks the `api_url` parameter against a whitelist.
+To prevent SSRF or abuse, the API checks the `api_url` parameter against a whitelist. You can configure this list using either a JSON file (hot-reloadable) or an environment variable. The system merges both lists.
 
+### Option 1: JSON File (Hot-Reloadable)
 -   **File:** `allowed_domains.json`
--   **Behavior:** Hot-reloads changes without restarting the server.
+-   **Behavior:** Updates take effect immediately without restarting the server.
 -   **Format:**
     ```json
     {
@@ -119,6 +121,11 @@ To prevent SSRF or abuse, the API checks the `api_url` parameter against a white
       ]
     }
     ```
+
+### Option 2: Environment Variable
+-   **Variable:** `ALLOWED_DOMAINS_ENV`
+-   **Format:** Comma-separated list (supports wildcards).
+-   **Example:** `ALLOWED_DOMAINS_ENV=api.netsapiens.com,*.my-pbx.com`
 
 ## Frontend Integration
 

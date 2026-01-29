@@ -1,10 +1,12 @@
 import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
-from ns_client import NSClient
-from graph_builder import GraphBuilder
+
 import pytest
-from models import NSUser, NSPhoneNumber, NSAnswerRule, NSForwardingLogic, NodeData
+
+from graph_builder import GraphBuilder
+from models import NodeData, NSAnswerRule, NSForwardingLogic, NSPhoneNumber, NSUser
+from ns_client import NSClient
 
 
 @pytest.mark.asyncio
@@ -60,11 +62,19 @@ async def test_offnet_graph():
     elements = await builder.build()
 
     # Verify we have an offnet node
-    nodes = [e for e in elements if isinstance(e.data, NodeData)]
-    off_node = next((n for n in nodes if n.data.type == "offnet"), None)
+    off_node = next(
+        (
+            e
+            for e in elements
+            if isinstance(e.data, NodeData) and e.data.type == "offnet"
+        ),
+        None,
+    )
 
     assert off_node is not None
+    assert isinstance(off_node.data, NodeData)
     assert off_node.data.bg == "#90EE90"
+    assert off_node.data.label is not None
     assert "(909) 555-1234" in off_node.data.label
 
     print("Offnet node verified successfully.")
