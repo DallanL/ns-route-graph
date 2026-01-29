@@ -110,11 +110,12 @@ class GraphBuilder:
             return "user", u_name, None
         if "phone_" in target:
             return "device", target.replace("phone_", ""), None
+        if target in self.users_map:
+            return "user", target, None
         if re.match(r"^1?\d{10}$", target):
             return "offnet", target, None
 
-        if target in self.users_map:
-            return "user", target, None
+        
 
         if target.lower() == "hangup":
             return "hangup", "Hangup", None
